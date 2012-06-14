@@ -44,9 +44,9 @@ function test(input, encode, decode) {
     return;
   }
 
-  log('Compression (pre-form-encoding):',
+  log('after / before (no form-encoding):',
     displayCompression(json.length, encoded.length));
-  log('Compression (post-form-encoding):',
+  log('after / before (w/ form-encoding):',
     displayCompression(encodeURIComponent(json).length,
       encodeURIComponent(encoded).length));
   log('Encoding time: ' + displayTime(json.length, tEncode));
