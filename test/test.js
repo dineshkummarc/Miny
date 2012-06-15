@@ -2,9 +2,10 @@ var fs = require('fs');
 var path = require('path');
 var assert = require('assert');
 
-var Miny = require('./Miny');
+var Miny = require('../Miny');
 
-var jsonh = require('./jsonh');
+var jsonh = require('./third_party/jsonh');
+var cjson = require('./third_party/cjson');
 
 function displayCompression(before, after) {
   return (after / before * 100).toFixed(2) + '%';
@@ -62,7 +63,7 @@ files.forEach(function(file) {
 
   var filepath = path.join(SAMPLES, file);
 
-  var json = fs.readFileSync(filepath);
+  var json = fs.readFileSync(filepath, 'utf8');
   var sample = JSON.parse(json);
 
   console.log('\nTESTING ', file, '(' + json.length + ' chars)');
@@ -76,6 +77,13 @@ files.forEach(function(file) {
       return JSON.parse(Miny.decode(o));
     }
   );
+
+  console.log('cjson results:');
+  try {
+    test(sample, cjson.stringify, cjson.parse);
+  } catch (e) {
+    console.log('ERROR: ' + e.message);
+  }
 
   // jsonh only works on arrays(?)
   if (sample.concat) {

@@ -40,7 +40,7 @@ A Miny stream consists of the following '~'-separated fields:
   1. *magick* - format and version
   1. *lookupLength* - # of entries in the lookup table (to follow)
   1. *[lookupTable]* - [tableLength] fields comprising the lookup table
-  1. *contentCodes* - A single field of Miny-style indexes into lookupTable (see **Miny-style indexes** below)
+  1. *contentCodes* - A single field of Miny-style indexes into lookupTable (see **contentCodes field** below)
 
 For example the string `{"hello":"world","world":"hello"}` encodes as follows:
 
@@ -55,7 +55,7 @@ The contentCodes field is expected to be the bulk of Miny streams. Because of th
   * Using the digits 0-9, a-z, A-Z, - and _ to represent base 64 digits ...
   * For each index ...
     * get base 32 representation of the index.  E.g. 4007 decimal in base 32 is '3t7'
-    * For **just** the least-significant digit ('7'), add 32 ( becomes 39), and convert to base-64 (becomes 'D').  So 4007 encodes as 3t7.
+    * For the right-most (least significant) digit, add 32, and convert to base-64.  E.g. '3t7' becomes '3tD' (7 + 32 = 39, in base 64 is 'D')
   * Concatenate all indexes together (no separator)
 
-Miny index streams are easily by simply looking for the low-order digits which, because of the offset-by-32, use a different set of characters than the higher-order digits.
+By using the upper-32 digits of base 64 encoding for the least-significant digit, it's possible concatenate our indexes together w/out the need for a separator character, making for a much more compact stream.
