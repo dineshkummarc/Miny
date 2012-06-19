@@ -7,87 +7,92 @@ var Miny = require('../Miny');
 var jsonh = require('./third_party/jsonh');
 var cjson = require('./third_party/cjson');
 
-function displayCompression(before, after) {
-  return (after / before * 100).toFixed(2) + '%';
+var ENCODERS = {
+  Miny: {
+    encode: function(o) {
+      return Miny.encode(JSON.stringify(o));
+    },
+    decode: function(o) {
+      return JSON.parse(Miny.decode(o));
+    }
+  },
+  JSONH: {encode: cjson.stringify, decode: cjson.parse},
+  CJSON: {encode: jsonh.stringify, decode: jsonh.parse}
+};
+
+function toUnits(n, units) {
+  var UNITS = ['n', 'u', 'm', null, 'K', 'M', 'G'];
+  var exp = Math.floor(Math.log(n)/Math.log(10)/3);
+  if (UNITS[exp + 3]) {
+    return (n/Math.pow(10, exp*3)).toFixed(1) +
+    UNITS[exp + 3] + (units || '');
+  }
+  return n;
 }
 
-function displayTime(n, t) {
-  return (n / t * 1000).toFixed(0) + ' chars per sec';
+function toPercentChange(after, before) {
+  return ((before - after)/before*100).toFixed(2) + '%';
 }
 
-function test(input, encode, decode) {
-  function log() {
-    var args = Array.prototype.slice.apply(arguments);
-    args.unshift('- ');
-    console.log.apply(console, args);
-  }
-  if (!input) {
-    log('ERROR: Data can not be encoded');
-    return;
-  }
+function toRate(n, t) {
+  return toUnits(n / t * 1000) + '/sec'; //'
+}
 
+function log() {
+  var args = Array.prototype.slice.apply(arguments);
+  args.unshift('- ');
+  console.log.apply(console, args);
+}
+
+function test(input, encoder) {
   var json = JSON.stringify(input);
 
   var tEncode = Date.now();
-  var encoded = encode(input);
+  try {
+    var encoded = encoder.encode(input);
+  } catch (e) {
+    return log('ERROR: ' + e.message);
+  }
   tEncode = Date.now() - tEncode;
+  log('Encoded', toUnits(json.length),
+    'in', tEncode.toFixed(0) + 'ms',
+    '(' + toRate(json.length, tEncode) + ')');
+  log('Compression:', toPercentChange(encoded.length, json.length),
+    '(url-encoded:' + toPercentChange(encodeURIComponent(encoded).length,
+      encodeURIComponent(json).length) + ')');
 
   var tDecode = Date.now();
-  var decoded = decode(encoded);
+  try {
+    var decoded = encoder.decode(encoded);
+  } catch (e) {
+    return log('ERROR: ' + e.message);
+  }
   tDecode = Date.now() - tDecode;
-
-  formEncoded = encodeURIComponent(encoded);
+  log('Decoded in', tDecode.toFixed(0) + 'ms',
+    '(' + toRate(json.length, tDecode) + ')');
 
   try {
     assert.deepEqual(input, decoded);
   } catch (e) {
-    log('ERROR: Decoded object != input object');
-    return;
+    return log('ERROR: Decoded object != input object');
   }
-
-  log('after / before (no form-encoding):',
-    displayCompression(json.length, encoded.length));
-  log('after / before (w/ form-encoding):',
-    displayCompression(encodeURIComponent(json).length,
-      encodeURIComponent(encoded).length));
-  log('Encoding time: ' + displayTime(json.length, tEncode));
-  log('Decoding time: ' + displayTime(json.length, tDecode));
 }
 
 // Test using each samples/*.json
 var SAMPLES = path.join(__dirname, 'samples');
 var files = fs.readdirSync(SAMPLES);
 
-files.forEach(function(file) {
-  if (!(/.json$/).test(file)) return;
+Object.keys(ENCODERS).forEach(function(encoder) {
+  files.forEach(function(file) {
+    // Skip non-json files
+    if (!(/.json$/).test(file)) return;
 
-  var filepath = path.join(SAMPLES, file);
+    // Read and parse contents
+    var filepath = path.join(SAMPLES, file);
+    var json = fs.readFileSync(filepath, 'utf8');
+    var sample = JSON.parse(json);
 
-  var json = fs.readFileSync(filepath, 'utf8');
-  var sample = JSON.parse(json);
-
-  console.log('\nTESTING ', file, '(' + json.length + ' chars)');
-
-  console.log('Miny results:');
-  test(sample,
-    function(o) {
-      return Miny.encode(JSON.stringify(o));
-    },
-    function(o) {
-      return JSON.parse(Miny.decode(o));
-    }
-  );
-
-  console.log('cjson results:');
-  try {
-    test(sample, cjson.stringify, cjson.parse);
-  } catch (e) {
-    console.log('ERROR: ' + e.message);
-  }
-
-  // jsonh only works on arrays(?)
-  if (sample.concat) {
-    console.log('jsonh results:');
-    test(sample.concat ? sample : null, jsonh.stringify, jsonh.parse);
-  }
-}, this);
+    console.log('\nTesting',  encoder, 'on', file);
+    test(sample, ENCODERS[encoder]);
+  }, this);
+});
